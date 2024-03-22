@@ -1,7 +1,7 @@
 const { Client, Events, GatewayIntentBits, ButtonBuilder, ButtonStyle, ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, EmbedBuilder, Partials } = require('discord.js');
 const mongoose = require("mongoose");
 require('dotenv').config();
-const { Client: YayClient } = require("yay.js");
+const { Client: YayClient } = require("./yay.js");
 const wait = require('node:timers/promises').setTimeout;
 const api = new YayClient();
 

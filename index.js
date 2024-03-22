@@ -242,14 +242,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 emailRotationIndex = (emailRotationIndex + 1) % emailRotation.length;
     
                 // Login with the rotated email address
-                await api.login({ email: email, password: process.env.YAY_PASSWORD });
+                // await api.login({ email: email, password: process.env.YAY_PASSWORD });
     
                 if (!isAnonymous) {
                     postEmbed.setAuthor({ name: `${postCount + 149}:${author}`, iconURL: interaction.user.displayAvatarURL()  });
-                    await api.createPost({text: `${postCount + 149}:${author}\n${censoredPost}`, groupId: "289158"});
+                    // await api.createPost({text: `${postCount + 149}:${author}\n${censoredPost}`, groupId: "289158"});
                 } else {
                     postEmbed.setAuthor({ name: `${postCount + 149}:${author} (${user.uniqueID})`, iconURL: "https://cdn.discordapp.com/attachments/1218519041023414332/1219822391513976994/Etl1X6ZUUAACFGr.jpg?ex=660cb321&is=65fa3e21&hm=b47b869819c0c000208404c04b11a303202140b9c6d365757f6e7bc3a68dce75&" });
-                    await api.createPost({text: `${postCount + 149}: 匿名(${user.uniqueID})\n${censoredPost}`, groupId: "289158"});
+                    // await api.createPost({text: `${postCount + 149}: 匿名(${user.uniqueID})\n${censoredPost}`, groupId: "289158"});
                 }
     
                 sendButton(false);

@@ -294,7 +294,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 await newPost.save();
     
                 const postCount = await Post.countDocuments();
-                
+                let threadCounter = await Thread.findOne({ threadId });
+
+                if (threadCounter) {
+                    threadCounter.count++;
+                    await threadCounter.save();
+                } else {
+                    console.error("Thread counter not found for thread ID: " + threadId);
+
+                    threadCounter = new Thread({ threadId, count: 1 });
+                    await threadCounter.save();
+                    console.log("New thread counter created for thread ID: " + threadId);
+                }
                 const postEmbed = new EmbedBuilder()
                     .setDescription(censoredPost) // Use the censored version
                     .setTimestamp()

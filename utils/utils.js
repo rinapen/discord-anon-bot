@@ -1,6 +1,14 @@
 const { Client, Events, GatewayIntentBits, ButtonBuilder, ButtonStyle, ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, EmbedBuilder, Partials, ChannelType, PermissionsBitField, messageLink } = require('discord.js');
 
 const buttonMessageMap = new Map();
+const client = new Client({
+    intents: Object.values(GatewayIntentBits).filter(Number.isInteger),
+    partials: [
+        Partials.Message,
+        Partials.Reaction,
+        Partials.Channel
+    ]
+});
 
 async function sendButton(SendOK, channelId) {
     const channel = client.channels.cache.get(channelId);

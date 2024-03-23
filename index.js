@@ -315,6 +315,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 if (imageURL && imageURL.startsWith('https')) {
                     postEmbed.setImage(imageURL);
                 }
+                const channelId = interaction.channel.id;
+                const thread = await Thread.findOne({ channelId });
                 if (interaction.channel.id === "1219789774630686723") {
                     if (!isAnonymous) {
                         postEmbed.setAuthor({ name: `${postCount + 149}:${author}`, iconURL: interaction.user.displayAvatarURL()  });

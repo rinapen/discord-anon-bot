@@ -294,6 +294,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 await newPost.save();
     
                 const postCount = await Post.countDocuments();
+                const threadId = interaction.channel.id; 
                 let threadCounter = await Thread.findOne({ threadId });
 
                 if (threadCounter) {

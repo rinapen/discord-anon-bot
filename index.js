@@ -315,7 +315,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 sendButton(false, interaction.channel.id);
                 await client.channels.cache.get("1219789774630686723").send({ embeds: [postEmbed] });
     
-                sendButton(true, nteraction.channel.id);
+                sendButton(true, interaction.channel.id);
                 await interaction.deferUpdate();
                 await wait(4_000)
             } catch (error) {

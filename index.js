@@ -283,17 +283,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     censoredPost = censoredPost.replace(regex, "*".repeat(word.length));
                 });
                 if (interaction.channel.id === "1219789774630686723") {
-                    var newPost = new Post({
+                    const newPost = new Post({
                         content: censoredPost,
                         imageURL: imageURL,
                         author: interaction.user.username,
                         isAnonymous: isAnonymous,
                         uniqueID: user.uniqueID
                     });
-        
+                    await newPost.save();
                 }
                 
-                await newPost.save();
+                
     
                 const postCount = await Post.countDocuments();
                 const threadId = interaction.channel.id; 

@@ -317,7 +317,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
     
                 sendButton(true, interaction.channel.id);
                 await interaction.deferUpdate();
-                await wait(4_000)
             } catch (error) {
                 console.error(error);
             }

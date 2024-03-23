@@ -312,10 +312,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     // await api.createPost({text: `${postCount + 149}: 匿名(${user.uniqueID})\n${censoredPost}`, groupId: "289158"});
                 }
     
-                sendButton(false);
+                sendButton(false, interaction.channel.id);
                 await client.channels.cache.get("1219789774630686723").send({ embeds: [postEmbed] });
     
-                sendButton(true);
+                sendButton(true, nteraction.channel.id);
                 await interaction.deferUpdate();
                 await wait(4_000)
             } catch (error) {

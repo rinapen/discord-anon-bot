@@ -220,7 +220,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 }
     
                 // Replace blacklisted words with "*"
-                let censoredPost = post;
+                let censoredPost = post ? post.replace(/\./g, "\"") : ""; // Replace "." with ""
                 blacklistedWords.forEach(word => {
                     const regex = new RegExp(word, "gi");
                     censoredPost = censoredPost.replace(regex, "*".repeat(word.length));
@@ -246,52 +246,32 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 if (imageURL && imageURL.startsWith('https')) {
                     postEmbed.setImage(imageURL);
                 }
- 
-                const threadId = interaction.channel.id; // スレッドのIDはチャンネルIDとして利用
-                let threadCounter = await Thread.findOne({ threadId });
-
-                if (threadCounter) {
-                    threadCounter.count++;
-                    await threadCounter.save();
-                } else {
-                    console.error("Thread counter not found for thread ID: " + threadId);
-
-                    threadCounter = new Thread({ threadId, count: 1 });
-                    await threadCounter.save();
-                    console.log("New thread counter created for thread ID: " + threadId);
-                }
-                const channelId = interaction.channel.id;
-                const thread = await Thread.findOne({ channelId });
-    
+            
                 if (!isAnonymous) {
-                    postEmbed.setTitle(`${threadCounter.count}:${author}`);
-                    if (interaction.user.id === thread.userId) {
-                        postEmbed.setTitle(`<:owner:1220362869439467591> ${threadCounter.count}: ${author}`);
-                    }
+                    postEmbed.setAuthor({ name: `${postCount + 149}:${author}`, iconURL: interaction.user.displayAvatarURL()  });
+                    // await api.createPost({text: `${postCount + 149}:${author}\n${censoredPost}`, groupId: "289158"});
                 } else {
-                    postEmbed.setTitle(`${threadCounter.count}: 匿名(${user.uniqueID})`)
-                    if (interaction.user.id === thread.userId) {
-                        postEmbed.setTitle(`<:owner:1220362869439467591> ${threadCounter.count}: 匿名(${user.uniqueID})`);
-                    }
+                    postEmbed.setAuthor({ name: `${postCount + 149}:${author} (${user.uniqueID})`, iconURL: "https://cdn.discordapp.com/attachments/1218519041023414332/1219822391513976994/Etl1X6ZUUAACFGr.jpg?ex=660cb321&is=65fa3e21&hm=b47b869819c0c000208404c04b11a303202140b9c6d365757f6e7bc3a68dce75&" });
+                    // await api.createPost({text: `${postCount + 149}: 匿名(${user.uniqueID})\n${censoredPost}`, groupId: "289158"});
                 }
-        
-
-                await sendButton(false, interaction.channel.id);
-                await client.channels.cache.get(interaction.channel.id).send({ embeds: [postEmbed] });
     
-                await sendButton(true, interaction.channel.id);
+                sendButton(false);
+                await client.channels.cache.get("1219789774630686723").send({ embeds: [postEmbed] });
+    
+                sendButton(true);
                 await interaction.deferUpdate();
+                await wait(4_000)
             } catch (error) {
                 console.error(error);
             }
         }
-
+    
         if (interaction.customId === "threadModal") {
             const userId = interaction.member.user.id; // ユーザーIDを取得
             const threadTitle = interaction.fields.getTextInputValue('threadTitle');
             const rule = interaction.fields.getTextInputValue('ruleInput');
-
-
+    
+    
             // MongoDBにユーザーIDを検索して既にスレッドを作成しているか確認
             try {
                 const existingThread = await Thread.findOne({ userId });
@@ -299,7 +279,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     await interaction.reply({content: '既にスレッドを作成しています。', ephemeral: true});
                     return;
                 }
-
+    
                 const permissions = [
                     {
                         id: interaction.guildId,
@@ -310,7 +290,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         ]
                     }
                 ];
-
+    
                 // チャンネルを作成してスレッド情報を表示
                 const newChannel = await interaction.guild.channels.create({
                     name: threadTitle,
@@ -321,7 +301,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 const channelId = newChannel.id;
                 const newThread = new Thread({ userId, channelId, threadTitle });
                 await newThread.save();
-
+    
                 const ruleEmbed = new EmbedBuilder()
                     .setDescription(rule)
                     .setTimestamp()
@@ -336,16 +316,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 console.error(error);
             }
         }
-
+    
         if (interaction.customId === "sendreport") {
             const report = interaction.fields.getTextInputValue('reportInput');
-
+    
             const dmChannel = await client.users.cache.get('1154344959646908449');
-
+    
             dmChannel.send(`新しいレポートが届きました\n\n${report}\n${interaction.user.username}`);
             interaction.deferUpdate();
         }
     }
+    
 });
 
 client.login(process.env.BOT_TOKEN);

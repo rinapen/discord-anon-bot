@@ -73,9 +73,9 @@ async function sendButton(SendOK, channelId) {
 
 client.on(Events.ClientReady, async () => {
     console.log(`Logged in as ${client.user.tag}`);
-    const channelId = "1219789774630686723";
+    const channelId = "1244992596640665651";
     sendButton(true, channelId)
-    const threadChannelId = '1220353181414850620';
+    const threadChannelId = '1246294731856674836';
 
     const channel = client.channels.cache.get(threadChannelId);
 
@@ -97,13 +97,13 @@ client.on(Events.ClientReady, async () => {
             .setCustomId("threadOpen")
             .setLabel("スレ立")
             .setStyle(ButtonStyle.Primary)
-            .setEmoji("1220356448903757846");
+            .setEmoji({id: "1220356448903757846"});
 
         const deleteButton = new ButtonBuilder()
             .setCustomId("delete")
             .setLabel("スレッド削除")
             .setStyle(ButtonStyle.Danger)
-            .setEmoji("1220714183042007083");
+            .setEmoji({id: "1220714183042007083"});
 
         const row = new ActionRowBuilder()
             .addComponents(threadButton, deleteButton);
@@ -381,7 +381,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     name: threadTitle,
                     type: ChannelType.GuildText,
                     permissionOverwrites: permissions,
-                    parent: "1220353121612464168"
+                    parent: "1246295181750177812"
                 });
                 const channelId = newChannel.id;
                 const newThread = new Thread({ userId, channelId, threadTitle });

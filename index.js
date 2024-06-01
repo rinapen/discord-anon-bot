@@ -260,96 +260,85 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const blacklistedWords = require('./blacklist.json');
     if (interaction.isModalSubmit()) {
         if (interaction.customId === "anonymousPost" || interaction.customId === "notanonymousPost") {
-            const post = interaction.fields.getTextInputValue('postInput');
-            let imageURL = interaction.fields.getTextInputValue('imageURLInput');
-            const isAnonymous = interaction.customId === "anonymousPost";
-            const author = isAnonymous ? "匿名" : interaction.user.username;
-    
-            try {
-                let user = await Post.findOne({ author: interaction.user.id });
-                if (!user) {
-                    const uniqueID = generateUniqueID();
-                    user = new Post({
-                        author: interaction.user.id,
-                        uniqueID: uniqueID
-                    });
-                    await user.save();
-                }
-    
-                // Replace blacklisted words with "*"
-                let censoredPost = post ? post.replace(/\./g, "\"") : ""; // Replace "." with ""
-                blacklistedWords.forEach(word => {
-                    const regex = new RegExp(word, "gi");
-                    censoredPost = censoredPost.replace(regex, "*".repeat(word.length));
-                });
-                if (interaction.channel.id === "1244627388764258385") {
-                    const newPost = new Post({
-                        content: censoredPost,
-                        imageURL: imageURL,
-                        author: interaction.user.username,
-                        isAnonymous: isAnonymous,
-                        uniqueID: user.uniqueID
-                    });
-                    await newPost.save();
-                }
-                
-                
-    
-                const postCount = await Post.countDocuments();
-                const threadId = interaction.channel.id; 
-                let threadCounter = await Thread.findOne({ threadId });
+    const post = interaction.fields.getTextInputValue('postInput');
+    let imageURL = interaction.fields.getTextInputValue('imageURLInput');
+    const isAnonymous = interaction.customId === "anonymousPost";
+    const author = isAnonymous ? "匿名" : interaction.user.username;
+    const logChannelId = "1245113400833347616";
+    try {
+        // Check if user already has a uniqueID
+        let user = await Post.findOne({ author: interaction.user.id });
+        let uniqueID;
+        if (!user) {
+            uniqueID = await generateUniqueID();
+        } else {
+            uniqueID = user.uniqueID;
+        }
 
-                if (threadCounter) {
-                    threadCounter.count++;
-                    await threadCounter.save();
-                } else {
-                    console.error("Thread counter not found for thread ID: " + threadId);
+        // Replace blacklisted words with "*"
+        let censoredPost = post ? post.replace(/\./g, "\"") : ""; // Replace "." with ""
+        blacklistedWords.forEach(word => {
+            const regex = new RegExp(word, "gi");
+            censoredPost = censoredPost.replace(regex, "*".repeat(word.length));
+        });
 
-                    threadCounter = new Thread({ threadId, count: 1 });
-                    await threadCounter.save();
-                    console.log("New thread counter created for thread ID: " + threadId);
-                }
-                const postEmbed = new EmbedBuilder()
-                    .setDescription(censoredPost) // Use the censored version
-                    .setTimestamp()
-                    .setColor(0x2b2d31);
-    
-                if (imageURL && imageURL.startsWith('https')) {
-                    postEmbed.setImage(imageURL);
-                }
-                const channelId = interaction.channel.id;
-                const thread = await Thread.findOne({ channelId });
-                if (interaction.channel.id === "1244627388764258385") {
-                    if (!isAnonymous) {
-                        postEmbed.setAuthor({ name: `${postCount}:${author}`, iconURL: interaction.user.displayAvatarURL()  });
-                        // await api.createPost({text: `${postCount + 149}:${author}\n${censoredPost}`, groupId: "289158"});
-                    } else {
-                        postEmbed.setAuthor({ name: `${postCount}:${author} (${user.uniqueID})`, iconURL: "https://cdn.discordapp.com/attachments/1218519041023414332/1219822391513976994/Etl1X6ZUUAACFGr.jpg?ex=660cb321&is=65fa3e21&hm=b47b869819c0c000208404c04b11a303202140b9c6d365757f6e7bc3a68dce75&" });
-                        // await api.createPost({text: `${postCount + 149}: 匿名(${user.uniqueID})\n${censoredPost}`, groupId: "289158"});
-                    }
-                } else {
-                    if (!isAnonymous) {
-                        postEmbed.setTitle(`${threadCounter.count}:${author}`);
-                        if (interaction.user.id === thread.userId) {
-                            postEmbed.setTitle(`<:owner:1220362869439467591> ${threadCounter.count}: ${author}`);
-                        }
-                    } else {
-                        postEmbed.setTitle(`${threadCounter.count}: 匿名(${user.uniqueID})`)
-                        if (interaction.user.id === thread.userId) {
-                            postEmbed.setTitle(`<:owner:1220362869439467591> ${threadCounter.count}: 匿名(${user.uniqueID})`);
-                        }
-                    }
-                }
-    
-                sendButton(false, interaction.channel.id);
-                await client.channels.cache.get(interaction.channel.id).send({ embeds: [postEmbed] });
-    
-                sendButton(true, interaction.channel.id);
-                await interaction.deferUpdate();
-            } catch (error) {
-                console.error(error);
+        if (interaction.channel.id === "1244627388764258385") {
+            const logChannel = await interaction.guild.channels.fetch(logChannelId);
+            if (logChannel) {
+                const logMessage = new EmbedBuilder()
+                    .setColor(0x00ff00)
+                    .setTitle("ログ")
+                    .setDescription(`${interaction.user.username}が投稿しました。`)
+                    .addFields(
+                        { name: 'ユーザーID', value: interaction.user.id, inline: true },
+                        { name: 'ユーザーネーム', value: interaction.user.username, inline: true },
+                        { name: '匿名', value: isAnonymous ? "匿名" : "非匿名", inline: true },
+                        { name: '固有ID', value: uniqueID, inline: true },
+                        { name: '内容', value: censoredPost, inline: true }
+                    )
+                    .setTimestamp();
+                await logChannel.send({ embeds: [logMessage] });
             }
         }
+
+        // Create and save the post
+        const newPost = new Post({
+            content: censoredPost,
+            imageURL: imageURL,
+            author: interaction.user.id,
+            isAnonymous: isAnonymous,
+            uniqueID: uniqueID
+        });
+        await newPost.save();
+
+        const postCount = await Post.countDocuments();
+        const postEmbed = new EmbedBuilder()
+            .setDescription(censoredPost) // Use the censored version
+            .setTimestamp()
+            .setColor(0x2b2d31);
+
+        if (imageURL && imageURL.startsWith('https')) {
+            postEmbed.setImage(imageURL);
+        }
+
+        if (interaction.channel.id === "1244627388764258385") {
+            if (!isAnonymous) {
+                postEmbed.setAuthor({ name: `${postCount}: ${author}`, iconURL: interaction.user.displayAvatarURL() });
+            } else {
+                postEmbed.setAuthor({ name: `${postCount}: ${author} (${uniqueID})`, iconURL: "https://cdn.discordapp.com/attachments/1218519041023414332/1219822391513976994/Etl1X6ZUUAACFGr.jpg?ex=660cb321&is=65fa3e21&hm=b47b869819c0c000208404c04b11a303202140b9c6d365757f6e7bc3a68dce75&" });
+            }
+        }
+
+        await sendButton(false, interaction.channel.id);
+        await client.channels.cache.get(interaction.channel.id).send({ embeds: [postEmbed] });
+
+        await sendButton(true, interaction.channel.id);
+        await interaction.deferUpdate();
+    } catch (error) {
+        console.error(error);
+    }
+}
+
     
         if (interaction.customId === "threadModal") {
             const userId = interaction.user.id; // ユーザーIDを取得

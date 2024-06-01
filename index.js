@@ -28,25 +28,25 @@ async function sendButton(SendOK, channelId) {
             .setCustomId("anonymous")
             .setLabel("匿名")
             .setStyle(ButtonStyle.Primary)
-            .setEmoji("1219813381570170921");
+            .setEmoji({id: "1219813381570170921"});
 
         const NotanonymousButton = new ButtonBuilder()
             .setCustomId("notanonymous")
             .setLabel("非匿名")
             .setStyle(ButtonStyle.Primary)
-            .setEmoji("1219813381570170921");
+            .setEmoji({id: "1219813381570170921"});
 
         const RuleButton = new ButtonBuilder()
             .setCustomId("rule")
             .setLabel("規約")
             .setStyle(ButtonStyle.Success)
-            .setEmoji("1219861316269899896");
+            .setEmoji({id: "1219861316269899896"});
 
         const reportButton = new ButtonBuilder()
             .setCustomId("report")
             .setLabel("通報")
             .setStyle(ButtonStyle.Danger)
-            .setEmoji("1219862630555193425")
+            .setEmoji({id: "1219862630555193425"})
 
         const ImageURLButton = new ButtonBuilder()
             .setLabel("画像変換")
@@ -73,7 +73,7 @@ async function sendButton(SendOK, channelId) {
 
 client.on(Events.ClientReady, async () => {
     console.log(`Logged in as ${client.user.tag}`);
-    const channelId = "1244992596640665651";
+    const channelId = "1244627388764258385";
     sendButton(true, channelId)
     const threadChannelId = '1246294731856674836';
 
@@ -282,7 +282,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     const regex = new RegExp(word, "gi");
                     censoredPost = censoredPost.replace(regex, "*".repeat(word.length));
                 });
-                if (interaction.channel.id === "1219789774630686723") {
+                if (interaction.channel.id === "1244627388764258385") {
                     const newPost = new Post({
                         content: censoredPost,
                         imageURL: imageURL,
@@ -319,12 +319,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 }
                 const channelId = interaction.channel.id;
                 const thread = await Thread.findOne({ channelId });
-                if (interaction.channel.id === "1219789774630686723") {
+                if (interaction.channel.id === "1244627388764258385") {
                     if (!isAnonymous) {
-                        postEmbed.setAuthor({ name: `${postCount + 149}:${author}`, iconURL: interaction.user.displayAvatarURL()  });
+                        postEmbed.setAuthor({ name: `${postCount}:${author}`, iconURL: interaction.user.displayAvatarURL()  });
                         // await api.createPost({text: `${postCount + 149}:${author}\n${censoredPost}`, groupId: "289158"});
                     } else {
-                        postEmbed.setAuthor({ name: `${postCount + 149}:${author} (${user.uniqueID})`, iconURL: "https://cdn.discordapp.com/attachments/1218519041023414332/1219822391513976994/Etl1X6ZUUAACFGr.jpg?ex=660cb321&is=65fa3e21&hm=b47b869819c0c000208404c04b11a303202140b9c6d365757f6e7bc3a68dce75&" });
+                        postEmbed.setAuthor({ name: `${postCount}:${author} (${user.uniqueID})`, iconURL: "https://cdn.discordapp.com/attachments/1218519041023414332/1219822391513976994/Etl1X6ZUUAACFGr.jpg?ex=660cb321&is=65fa3e21&hm=b47b869819c0c000208404c04b11a303202140b9c6d365757f6e7bc3a68dce75&" });
                         // await api.createPost({text: `${postCount + 149}: 匿名(${user.uniqueID})\n${censoredPost}`, groupId: "289158"});
                     }
                 } else {
@@ -352,7 +352,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
     
         if (interaction.customId === "threadModal") {
-            const userId = interaction.member.user.id; // ユーザーIDを取得
+            const userId = interaction.user.id; // ユーザーIDを取得
             const threadTitle = interaction.fields.getTextInputValue('threadTitle');
             const rule = interaction.fields.getTextInputValue('ruleInput');
     

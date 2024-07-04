@@ -5,7 +5,11 @@ mongoose.connect(process.env.MONGODB_URL)
     .then(() => console.log("MongoDBに接続しました。"))
     .catch(err => console.error(err));
 
-const postSchema = new mongoose.Schema({
+const threadPostSchema = new mongoose.Schema({
+    channelId: {
+        type: String,
+        required: true
+    },
     postCount: {
         type: Number,
         required: true,
@@ -38,5 +42,7 @@ const postSchema = new mongoose.Schema({
         default: Date.now
     }
 });
-const Post = mongoose.model('Post', postSchema);
-module.exports = Post; 
+
+const ThreadPost = mongoose.model('ThreadPost', threadPostSchema);
+
+module.exports = ThreadPost;

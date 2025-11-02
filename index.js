@@ -1,4 +1,4 @@
-const { Client, Events, GatewayIntentBits, ButtonBuilder, ButtonStyle, ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, EmbedBuilder, Partials, ChannelType, PermissionFlagsBits, PermissionsBitField, AttachmentBuilder, Embed } = require('discord.js');
+const { Client, Events, GatewayIntentBits, ButtonBuilder, ButtonStyle, ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, EmbedBuilder, Partials, ChannelType, PermissionsBitField } = require('discord.js');
 require('dotenv').config();
 // 毎日0時にユニークIDを更新
 const schedule = require('node-schedule');
@@ -14,7 +14,20 @@ const MAIN_SERVER_ID = process.env.MAIN_SERVER_ID;
 
 const MAIN_TIMELINE_CHANNEL = process.env.MAIN_TIMELINE_CHANNEL;
 
-const MAIN_THREAD_PEARENT = process.env.MAIN_THREAD_PEARENT;
+const MAIN_THREAD_PARENT = process.env.MAIN_THREAD_PARENT;
+
+// 定数定義
+const EMBED_COLOR = 0x2b2d31;
+const ANONYMOUS_THUMBNAIL = "https://media.discordapp.net/attachments/1220269370580795482/1250382302073327738/OIG2.hBuT.jpg?ex=666abcc3&is=66696b43&hm=91c2d82b0b13e6ec5f6e9f08dfa861f904ed80d158d4ef54d2233e84e6cf2438&=&format=webp&width=595&height=595";
+const REACTION_EMOJIS = ["❤", "😂", "🥺"];
+const OWNER_EMOJI = "<:owner:1220362869439467591>";
+const ADMIN_EMOJI = "<:Admin:1249110303593992202>";
+const CHANNEL_PREFIXES = {
+    TIMELINE_ANONYMOUS: '匿名-',
+    TIMELINE_NON_ANONYMOUS: '非匿名-',
+    THREAD_ANONYMOUS: 't-匿名',
+    THREAD_NON_ANONYMOUS: 't-非匿名'
+};
 
 const client = new Client({
     intents: Object.values(GatewayIntentBits).filter(Number.isInteger),
@@ -23,7 +36,12 @@ const client = new Client({
 });
 
 const buttonMessageMap = new Map();
-const blacklistedWords = require("./blacklist.json")
+const blacklistedWords = require("./blacklist.json");
+// 正規表現を事前コンパイル（パフォーマンス向上）
+const blacklistRegexes = blacklistedWords.map(word => ({
+    word: word,
+    regex: new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "gi")
+}));
 
 const anonymousButton = new ButtonBuilder()
     .setCustomId("post")
@@ -112,9 +130,10 @@ async function sendButtonToThread(sendOK, threadId) {
 
 
 async function updatePostURLs(isThread, message1, postCount, userID, authorName, imageURL, primaryServerId, uniqueID, content, channelId) {
+    const messageURL = `https://discord.com/channels/${message1.guild.id}/${message1.channel.id}/${message1.id}`;
+    
     if (isThread) {
         let thread = await ThreadPost.findOne({ postCount: postCount });
-        console.log("a")
         if (!thread) {
             thread = new ThreadPost({
                 channelId: channelId,
@@ -127,12 +146,9 @@ async function updatePostURLs(isThread, message1, postCount, userID, authorName,
                 imageURL: imageURL
             });
         }
-        console.log("b")
-        const messageURL = `https://discord.com/channels/${message1.guild.id}/${message1.channel.id}/${message1.id}`;
         if (!thread.url) {
             thread.url = new Map();
         }
-        console.log(messageURL)
         thread.url.set(primaryServerId, messageURL);
         await thread.save();
     } else {
@@ -148,7 +164,6 @@ async function updatePostURLs(isThread, message1, postCount, userID, authorName,
                 imageURL: imageURL
             });
         }
-        const messageURL = `https://discord.com/channels/${message1.guild.id}/${message1.channel.id}/${message1.id}`;
         if (!post.url) {
             post.url = new Map();
         }
@@ -157,54 +172,46 @@ async function updatePostURLs(isThread, message1, postCount, userID, authorName,
     }
 }
 
-const createThreadChannel = async (isAnonymous, userId, serverId, channelId, threadName) => {
-    // モデルに保存するデータを作成
-    const threadData = new Thread({
-        userId: userId,
-        serverId: serverId,
-        channelId: channelId,
-        threadId: threadId,
-        threadName: threadName,
-    });
-
-    // データベースに保存
-    await threadData.save();
-};
 const getUniqueID = async (userId) => {
     try {
         if (!userId) {
             throw new Error('userId is required');
         }
-        
-        console.log("Received userId:", userId);
 
         let uniqueIDDoc = await Unique.findOne({ userId });
         
         if (!uniqueIDDoc) {
-            console.log("AA")
             const newUniqueID = await generateUniqueID();
-            console.log(newUniqueID)
-            console.log(userId)
-            uniqueIDDoc = new Unique({ userId:  userId, uniqueID:  newUniqueID });
+            uniqueIDDoc = new Unique({ userId: userId, uniqueID: newUniqueID });
             await uniqueIDDoc.save();
         }
         
         return uniqueIDDoc.uniqueID;
     } catch (err) {
         console.error('Error in getUniqueID:', err);
-        throw err; // Re-throw the error for further handling if needed
+        throw err;
     }
 };
 
-// Function to update unique IDs for all users
+// Function to update unique IDs for all users (一括更新でパフォーマンス向上)
 const updateUniqueIDs = async () => {
     try {
         const users = await Unique.find({});
         
-        for (const user of users) {
-            user.uniqueID = await generateUniqueID();
-            user.updatedAt = new Date();
-            await user.save();
+        const bulkOps = await Promise.all(users.map(async (user) => ({
+            updateOne: {
+                filter: { _id: user._id },
+                update: {
+                    $set: {
+                        uniqueID: await generateUniqueID(),
+                        updatedAt: new Date()
+                    }
+                }
+            }
+        })));
+        
+        if (bulkOps.length > 0) {
+            await Unique.bulkWrite(bulkOps);
         }
         
         console.log('Unique IDs updated.');
@@ -229,10 +236,10 @@ client.on(Events.MessageCreate, async (message) => {
 
         // チャンネル名を取得し、匿名・非匿名およびスレッドかどうかを判定する
         const channelName = message.channel.name;
-        const isTimelineAnonymous = channelName.startsWith('匿名-');
-        const isTimelineNonAnonymous = channelName.startsWith('非匿名-');
-        const isThreadAnonymous = channelName.startsWith('t-匿名');
-        const isThreadNonAnonymous = channelName.startsWith('t-非匿名');
+        const isTimelineAnonymous = channelName.startsWith(CHANNEL_PREFIXES.TIMELINE_ANONYMOUS);
+        const isTimelineNonAnonymous = channelName.startsWith(CHANNEL_PREFIXES.TIMELINE_NON_ANONYMOUS);
+        const isThreadAnonymous = channelName.startsWith(CHANNEL_PREFIXES.THREAD_ANONYMOUS);
+        const isThreadNonAnonymous = channelName.startsWith(CHANNEL_PREFIXES.THREAD_NON_ANONYMOUS);
 
         // 匿名・非匿名のタイムラインまたはスレッドでないチャンネルの場合は終了
         if (!isTimelineAnonymous && !isTimelineNonAnonymous && !isThreadAnonymous && !isThreadNonAnonymous) return;
@@ -268,16 +275,16 @@ client.on(Events.MessageCreate, async (message) => {
             }
         }
 
-        const referenceMatch = originalContent.match(/^\^(\d+)\s+(.+)/); // 番号とメッセージを別々にマッチさせる
+        const referenceMatch = originalContent.match(/^\^(\d+)\s+(.+)/);
         let first;
         if (referenceMatch) {
             const referencedPostNumber = referenceMatch[1];
-            const referencedMessage = referenceMatch[2]; // メッセージ部分を取得
+            const referencedMessage = referenceMatch[2];
             first = referencedMessage;
             let referencedPost;
-            if ( isThreadAnonymous|| isThreadNonAnonymous) {
+            if (isThreadAnonymous || isThreadNonAnonymous) {
                 referencedPost = await Thread.findOne({ postCounter: referencedPostNumber });
-            } if (isTimelineAnonymous || isTimelineNonAnonymous) {
+            } else if (isTimelineAnonymous || isTimelineNonAnonymous) {
                 referencedPost = await Post.findOne({ postCount: referencedPostNumber });
             }
             if (referencedPost && referencedPost.content && !referencedPost.isQuoted) { // contentが存在していて、まだ引用されていない場合のみ
@@ -321,10 +328,9 @@ client.on(Events.MessageCreate, async (message) => {
         globalPostCount.postCount++;
         await globalPostCount.save();
 
-        // ブラックリストにある単語を検閲
+        // ブラックリストにある単語を検閲（事前コンパイル済みの正規表現を使用）
         let censoredOriginalContent = originalContent;
-        blacklistedWords.forEach(word => {
-            const regex = new RegExp(word, "gi");
+        blacklistRegexes.forEach(({ word, regex }) => {
             censoredOriginalContent = censoredOriginalContent.replace(regex, "*".repeat(word.length));
         });
         censoredOriginalContent = censoredOriginalContent.replace(/(https?:\/\/discord(?:\"|\.com)\/channels\/\d+\/\d+\/\d+)/gi, (match, p1) => {
@@ -342,119 +348,104 @@ client.on(Events.MessageCreate, async (message) => {
             authorName = `匿名ちゃん`;
         } else {
             authorName = `${message.author.username}`;
-            if (thread1) {
-                if (message.channel.parentId === thread1.channelIds.main || message.channel.parentId === thread1.channelIds.sub) {
-                    const ownerEmoji = "<:owner:1220362869439467591>";
-                    authorName = `${ownerEmoji} ${authorName}`;
-                }
+            if (thread1 && message.channel.parentId === thread1.channelIds.main) {
+                authorName = `${OWNER_EMOJI} ${authorName}`;
             }
             if (message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-                const adminEmoji = "<:Admin:1249110303593992202>";
-                authorName = `${adminEmoji} ${authorName}`;
+                authorName = `${ADMIN_EMOJI} ${authorName}`;
             }
         }
 
         // 投稿の送信と記録
         const primaryServerId = message.guild.id;
 
-        const mainTimelineChannelId = message.channel.parentId;
-
-        // First, find the Thread document where mainTimelineChannelId matches main channel ID
         let mainTimeline;
-        const thread = await Thread.findOne({
-            'channelIds.main': mainTimelineChannelId
-        });
+        let postCount;
+        let threadData = null;
         
         if (isTimelineAnonymous || isTimelineNonAnonymous) {
             mainTimeline = client.channels.cache.get(MAIN_TIMELINE_CHANNEL);
+            postCount = globalPostCount.postCount;
         } else if (isThreadAnonymous || isThreadNonAnonymous) {
-            mainTimeline = client.channels.cache.get(message.channel.parentId)
+            const mainTimelineChannelId = message.channel.parentId;
+            mainTimeline = client.channels.cache.get(mainTimelineChannelId);
+            
+            threadData = await Thread.findOne({ 'channelIds.main': mainTimelineChannelId });
+            if (threadData) {
+                postCount = threadData.postCounter + 1;
+                threadData.postCounter = postCount;
+                await threadData.save();
+            } else {
+                console.error('Thread not found for channel:', mainTimelineChannelId);
+                return;
+            }
         }
 
         let postContent = `\n\n\n${censoredOriginalContent || ''}`;
 
-        let postEmbed;
-        let postCount;
-        if (isThreadAnonymous || isThreadNonAnonymous) {
-            const thread = await Thread.findOne({ 'channelIds.main': message.channel.parentId });
-            if (thread) {
-                postCount = thread.postCounter + 1; // Increment post counter
-                console.log(postCount);
-                thread.postCounter = postCount; // Update post counter in thread object
-                await thread.save(); // Save updated thread object to database
-            } else {
-                console.error('Thread not found for channel:', message.channel.parentId);
-            }
-
-            postEmbed = new EmbedBuilder()
-                .setTimestamp()
-                .setColor(0x2b2d31)
-                .setTitle(`[${thread.postCounter}] ${authorName}`)
-                .setDescription(postContent);
-        } 
-        if (isTimelineAnonymous || isTimelineNonAnonymous) {
-            postCount = globalPostCount.postCount;
-            postEmbed = new EmbedBuilder()
-                .setTimestamp()
-                .setColor(0x2b2d31)
-                .setTitle(`[${globalPostCount.postCount}] ${authorName}`)
-                .setDescription(postContent);
+        if (!mainTimeline) {
+            console.error('Main timeline channel not found');
+            return;
         }
 
+        let postEmbed = new EmbedBuilder()
+            .setTimestamp()
+            .setColor(EMBED_COLOR)
+            .setTitle(`[${postCount}] ${authorName}`)
+            .setDescription(postContent);
+
         if (isThreadAnonymous || isTimelineAnonymous) {
-            postEmbed.setThumbnail("https://media.discordapp.net/attachments/1220269370580795482/1250382302073327738/OIG2.hBuT.jpg?ex=666abcc3&is=66696b43&hm=91c2d82b0b13e6ec5f6e9f08dfa861f904ed80d158d4ef54d2233e84e6cf2438&=&format=webp&width=595&height=595");
+            postEmbed.setThumbnail(ANONYMOUS_THUMBNAIL);
         } else {
             postEmbed.setThumbnail(message.author.displayAvatarURL());
         }
 
-        const message1 = await mainTimeline.send({ embeds: [postEmbed] });
-        const emojis = ["❤", "😂", "🥺"];
-        for (const emoji of emojis) {
-            message1.react(emoji);
+        const sentMessage = await mainTimeline.send({ embeds: [postEmbed] });
+        for (const emoji of REACTION_EMOJIS) {
+            await sentMessage.react(emoji);
         }
         
-        if (first) {
-            if (isThreadAnonymous || isThreadNonAnonymous) {
-                await updatePostURLs(true, message1, postCount, userID, authorName, attachedImageURLs[0], message.guildId, uniqueID, first, message.channel.parentId);
-            } else {
-                await updatePostURLs(false, message1, postCount, userID, authorName, attachedImageURLs[0], message.guildId, uniqueID, first, message.channel.parentId);
-            }
-        } else {
-            if (isThreadAnonymous || isThreadNonAnonymous) {
-                await updatePostURLs(true, message1, postCount, userID, authorName, attachedImageURLs[0], message.guildId, uniqueID, censoredOriginalContent, message.channel.parentId);
-            } else {
-                await updatePostURLs(false, message1, postCount, userID, authorName, attachedImageURLs[0], message.guildId, uniqueID, censoredOriginalContent, message.channel.parentId);
-            }
-        }
+        const isThread = isThreadAnonymous || isThreadNonAnonymous;
+        const contentToStore = first || censoredOriginalContent;
+        await updatePostURLs(
+            isThread, 
+            sentMessage, 
+            postCount, 
+            userID, 
+            authorName, 
+            attachedImageURLs[0], 
+            message.guildId, 
+            uniqueID, 
+            contentToStore, 
+            message.channel.parentId
+        );
 
-        for (const url of attachedImageURLs) {
-            await mainTimeline.send(url);
-        }
-        for (const url of attachedFiles) {
-            await mainTimeline.send(url);
-        }
+        // 添付ファイルを並列送信（パフォーマンス向上）
+        const allAttachments = [...attachedImageURLs, ...attachedFiles];
+        await Promise.all(allAttachments.map(url => mainTimeline.send(url)));
+
+        // ボタンの更新
         if (isTimelineAnonymous || isTimelineNonAnonymous) {
-            await sendButton(false);
             await sendButton(true);
-        }
-        if (isThreadAnonymous || isThreadNonAnonymous) {
-            await sendButtonToThread(false, message.channel.parentId)
-            await sendButtonToThread(true, message.channel.parentId) 
+        } else if (isThreadAnonymous || isThreadNonAnonymous) {
+            await sendButtonToThread(true, message.channel.parentId);
         }
         // 投稿をログチャンネルに記録
         const logChannel = client.channels.cache.get(process.env.LOGCHANNEL);
-        const logEmbed = new EmbedBuilder()
-            .setColor('#0099ff')
-            .setTitle('投稿ログ')
-            .addFields(
-                { name: '匿名', value: isTimelineAnonymous || isThreadAnonymous ? 'Yes' : 'No', inline: true },
-                { name: 'ユーザーネーム', value: message.author.username, inline: true },
-                { name: 'ユーザーID', value: message.author.id, inline: true },
-                { name: '投稿内容', value: message.content },
-                { name: 'タイムスタンプ', value: new Date().toLocaleString() }
-            )
-            .setTimestamp();
-        logChannel.send({ embeds: [logEmbed] });
+        if (logChannel) {
+            const logEmbed = new EmbedBuilder()
+                .setColor('#0099ff')
+                .setTitle('投稿ログ')
+                .addFields(
+                    { name: '匿名', value: isTimelineAnonymous || isThreadAnonymous ? 'Yes' : 'No', inline: true },
+                    { name: 'ユーザーネーム', value: message.author.username, inline: true },
+                    { name: 'ユーザーID', value: message.author.id, inline: true },
+                    { name: '投稿内容', value: message.content || 'なし' },
+                    { name: 'タイムスタンプ', value: new Date().toLocaleString() }
+                )
+                .setTimestamp();
+            await logChannel.send({ embeds: [logEmbed] });
+        }
 
     } catch (error) {
         console.error('Error processing message:', error);
@@ -490,7 +481,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     
                     const createThread = async (isAnonymous) => {
                         let threadName;
-                        if (interaction.channelId === MAIN_TIMELINE_CHANNEL || interaction.channelId === SUB_TIMELINE_CHANNEL) {
+                        if (interaction.channelId === MAIN_TIMELINE_CHANNEL) {
                             threadName = isAnonymous ? `匿名-${userId}` : `非匿名-${userId}`;
                         } else if (interaction.channel.name.includes('t-')) {
                             threadName = isAnonymous ? `匿名-${userId}` : `非匿名-${userId}`;
@@ -517,29 +508,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         await thread.setRateLimitPerUser(5);
                         await thread.members.add(interaction.user.id);
                     
-                        const parentChannel = client.channels.cache.get(thread.id); // 親チャンネルを取得
+                        const threadMessage = new EmbedBuilder()
+                            .setDescription(`**${isAnonymous ? '匿名' : interaction.user.username}** さんがこのスレッドを作成しました。ここにメッセージを入力してください。`)
+                            .setColor(EMBED_COLOR)
+                            .setTimestamp();
 
-                        if (parentChannel) {
-                            const threadMessage = new EmbedBuilder()
-                                .setDescription(`**${isAnonymous ? '匿名' : interaction.user.username}** さんがこのスレッドを作成しました。ここにメッセージを入力してください。`)
-                                .setColor(0x2b2d31)
-                                .setTimestamp();
-
-                            await parentChannel.send({ embeds: [threadMessage] });
-
-                            // 匿名、非匿名の両方のチャンネルにメッセージを送信
-                            if (isAnonymous) {
-                                const anonymousChannel = client.channels.cache.get('匿名チャンネルのID');
-                                if (anonymousChannel) {
-                                    await anonymousChannel.send({ embeds: [threadMessage] });
-                                }
-                            } else {
-                                const nonAnonymousChannel = client.channels.cache.get('非匿名チャンネルのID');
-                                if (nonAnonymousChannel) {
-                                    await nonAnonymousChannel.send({ embeds: [threadMessage] });
-                                }
-                            }
-                        }
+                        await thread.send({ embeds: [threadMessage] });
 
                     
                         const filter = m => m.author.id === interaction.user.id;
@@ -655,27 +629,30 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (interaction.isModalSubmit()) {
             if (interaction.customId === 'sendreport') {
                 await interaction.deferReply({ ephemeral: true });
-                const reportContent = interaction.fields.getTextInputValue("reportInput"); // 通報内容を取得
+                const reportContent = interaction.fields.getTextInputValue("reportInput");
         
-                const reportChannel = client.channels.cache.get(process.env.REPORT_CHANNEL_ID); // 'REPORT_CHANNEL_ID'を実際の通報用チャンネルのIDに置き換えてください
+                const reportChannel = client.channels.cache.get(process.env.REPORT_CHANNEL_ID);
         
-                const reportEmbed = new EmbedBuilder()
-                    .setTitle('新しい通報がありました！')
-                    .addFields(
-                        { name: '通報内容', value: reportContent },
-                        { name: '通報者', value: interaction.user.tag },
-                    )
-                    .setTimestamp();
-        
-                await reportChannel.send({ embeds: [reportEmbed] });
-        
-                await interaction.reply({ content: '通報が送信されました。ありがとうございます。', ephemeral: true });
+                if (reportChannel) {
+                    const reportEmbed = new EmbedBuilder()
+                        .setTitle('新しい通報がありました！')
+                        .addFields(
+                            { name: '通報内容', value: reportContent },
+                            { name: '通報者', value: interaction.user.tag },
+                        )
+                        .setTimestamp();
+            
+                    await reportChannel.send({ embeds: [reportEmbed] });
+                    await interaction.editReply({ content: '通報が送信されました。ありがとうございます。' });
+                } else {
+                    await interaction.editReply({ content: '通報チャンネルが見つかりません。' });
+                }
             }
             if (interaction.customId === "threadModal") {
                 await interaction.deferReply({ ephemeral: true });
                 const threadTitle = interaction.fields.getTextInputValue("threadTitle");
                 const threadRule= interaction.fields.getTextInputValue("ruleInput");
-                const mainParentCategoryId = MAIN_THREAD_PEARENT;
+                const mainParentCategoryId = MAIN_THREAD_PARENT;
 
                 const guild = client.guilds.cache.get(MAIN_SERVER_ID);
                 if (!guild) {
@@ -712,9 +689,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 
                 const ruleEmbed = new EmbedBuilder()
                     .setTitle(threadRule)
-                    .setColor(0x2b2d31)
+                    .setColor(EMBED_COLOR);
 
-                await newChannel.send({embeds: [ruleEmbed]})
+                await newChannel.send({ embeds: [ruleEmbed] });
 
                 const newThread = new Thread({
                     userId: userId,

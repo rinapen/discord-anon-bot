@@ -1,5 +1,5 @@
 {
-  "description": "",
+  "description": "Anonymous bot for Discord",
   "scripts": {
     "dev": "nodemon index.js"
   },

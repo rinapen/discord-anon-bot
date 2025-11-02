@@ -1,4 +1,3 @@
-
 async function generateUniqueID() {
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let uniqueID = '';
@@ -7,6 +6,5 @@ async function generateUniqueID() {
     }
     return uniqueID;
 }
-
 
 module.exports = { generateUniqueID };

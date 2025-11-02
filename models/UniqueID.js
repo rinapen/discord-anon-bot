@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-// Connect to MongoDB using the connection URL stored in the environment variable
 mongoose.connect(process.env.MONGODB_URL)
   .then(() => console.log('MongoDB connected'))
   .catch(err => console.error('MongoDB connection error:', err));

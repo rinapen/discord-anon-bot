@@ -11,13 +11,10 @@ const Unique = require("./models/UniqueID");
 const { generateUniqueID } = require("./utils/utils");
 
 const MAIN_SERVER_ID = process.env.MAIN_SERVER_ID;
-const SUB_SERVER_ID = process.env.SUB_SERVER_ID;
 
 const MAIN_TIMELINE_CHANNEL = process.env.MAIN_TIMELINE_CHANNEL;
-const SUB_TIMELINE_CHANNEL = process.env.SUB_TIMELINE_CHANNEL;
 
 const MAIN_THREAD_PEARENT = process.env.MAIN_THREAD_PEARENT;
-const SUB_THREAD_PEARENT = process.env.SUB_THREAD_PEARENT;
 
 const client = new Client({
     intents: Object.values(GatewayIntentBits).filter(Number.isInteger),
@@ -52,87 +49,28 @@ const deleteButton = new ButtonBuilder()
     .setStyle(ButtonStyle.Danger)
     .setEmoji({ id: "1220714183042007083" });
 
-const serverInfo = {
-    [SUB_SERVER_ID]: {
-        inviteURL: "https://discord.gg/2UWzZdbRru",
-        channelId: MAIN_TIMELINE_CHANNEL
-    },
-    [MAIN_SERVER_ID]: {
-        inviteURL: "https://discord.gg/nhQagdVJgk",
-        channelId: SUB_TIMELINE_CHANNEL
-    }
-};
 
-const channelIdMap = {
-    [SUB_SERVER_ID]: SUB_TIMELINE_CHANNEL,
-    [MAIN_SERVER_ID]: MAIN_TIMELINE_CHANNEL
-};
 
-const channelId1Map = {
-    [MAIN_TIMELINE_CHANNEL]: SUB_TIMELINE_CHANNEL,
-    [SUB_TIMELINE_CHANNEL]: MAIN_TIMELINE_CHANNEL
-};
-
-const serverIdMap = {
-    [SUB_SERVER_ID]: MAIN_SERVER_ID,
-    [MAIN_SERVER_ID]: SUB_SERVER_ID
-};
-
-const sendEmbedToChannels = async (serverId, embed, respost, interaction) => {
-
-    const correspondingChannelId = channelIdMap[serverId];
-    const channel1Id = channelId1Map[correspondingChannelId];
-
-    const channel = await client.channels.cache.get(correspondingChannelId);
-    const channel1 = await client.channels.cache.get(channel1Id);
-
-    const message = await channel.send({ embeds: [embed] });
-    const emojis = ["♥️", "😂", "🥺"]
-    for (const emoji of emojis) {
-        await message.react(emoji);
-    }
-    if (respost) {
-        embed.setDescription(respost);
-    }
-    const message1 = await channel1.send({ embeds: [embed] });
-    for (const emoji of emojis) {
-        await message1.react(emoji);
-    }
-    return [message, message1];
-};
-
-async function sendButton(sendOK, serverId) {
+async function sendButton(sendOK) {
     try {
-        const info = serverInfo[serverId];
-
-        if (!info) {
-            console.log(`このサーバー (${serverId}) では有効なURLが指定されていません。`);
-            return;
-        }
-
-        const inviteURLButton = new ButtonBuilder()
-            .setLabel("相互鯖")
-            .setURL(info.inviteURL)
-            .setStyle(ButtonStyle.Link);
-
-        const channel = client.channels.cache.get(info.channelId);
+        const channel = client.channels.cache.get(MAIN_TIMELINE_CHANNEL);
         if (!channel) {
-            console.log(`指定されたIDのチャンネルが見つかりません: ${info.channelId}`);
+            console.log(`指定されたIDのチャンネルが見つかりません: ${MAIN_TIMELINE_CHANNEL}`);
             return;
         }
 
         if (sendOK) {
             const row = new ActionRowBuilder()
-                .addComponents(anonymousButton, createThreadButton, deleteButton, reportButton, inviteURLButton);
+                .addComponents(anonymousButton, createThreadButton, deleteButton, reportButton);
 
             const interaction = await channel.send({ components: [row] });
 
-            buttonMessageMap.set(serverId, interaction);
+            buttonMessageMap.set(MAIN_SERVER_ID, interaction);
         } else {
-            const buttonMessage = buttonMessageMap.get(serverId);
+            const buttonMessage = buttonMessageMap.get(MAIN_SERVER_ID);
             if (buttonMessage) {
                 await buttonMessage.delete();
-                buttonMessageMap.delete(serverId);
+                buttonMessageMap.delete(MAIN_SERVER_ID);
             }
         }
     } catch (err) {
@@ -143,43 +81,28 @@ async function sendButton(sendOK, serverId) {
 async function sendButtonToThread(sendOK, threadId) {
     try {
         const thread = await Thread.findOne({
-            $or: [
-                { 'channelIds.main': threadId },
-                { 'channelIds.sub': threadId }
-            ]
+            'channelIds.main': threadId
         });
 
         if (thread) {
-            // Get both channel IDs
             const mainChannelId = thread.channelIds.main;
-            const subChannelId = thread.channelIds.sub;
-
-            // Get both channels from the client's channel cache
             const mainChannel = client.channels.cache.get(mainChannelId);
-            const subChannel = client.channels.cache.get(subChannelId);
 
-            // Function to handle sending or deleting the button in a channel
-            const handleChannel = async (channelId, channel) => {
-                if (channel) {
-                    if (sendOK) {
-                        const row = new ActionRowBuilder()
-                            .addComponents(anonymousButton);
+            if (mainChannel) {
+                if (sendOK) {
+                    const row = new ActionRowBuilder()
+                        .addComponents(anonymousButton);
 
-                        const interaction = await channel.send({ components: [row] });
-                        buttonMessageMap.set(channelId, interaction);
-                    } else {
-                        const buttonMessage = buttonMessageMap.get(channelId);
-                        if (buttonMessage) {
-                            await buttonMessage.delete();
-                            buttonMessageMap.delete(channelId);
-                        }
+                    const interaction = await mainChannel.send({ components: [row] });
+                    buttonMessageMap.set(mainChannelId, interaction);
+                } else {
+                    const buttonMessage = buttonMessageMap.get(mainChannelId);
+                    if (buttonMessage) {
+                        await buttonMessage.delete();
+                        buttonMessageMap.delete(mainChannelId);
                     }
                 }
-            };
-
-            // Handle both channels
-            await handleChannel(mainChannelId, mainChannel);
-            await handleChannel(subChannelId, subChannel);
+            }
         }
     } catch (err) {
         console.error('Error in sendButtonToThread:', err);
@@ -188,58 +111,49 @@ async function sendButtonToThread(sendOK, threadId) {
 
 
 
-async function updatePostURLs(isThread, message1, message2, postCount, userID, authorName, imageURL, primaryServerId, secondaryServerId, uniqueID, content, channelId) {
+async function updatePostURLs(isThread, message1, postCount, userID, authorName, imageURL, primaryServerId, uniqueID, content, channelId) {
     if (isThread) {
-        const updateThreadPostURL = async (message, serverId) => {
-            let thread = await ThreadPost.findOne({ postCount: postCount });
-            console.log("a")
-            if (!thread) {
-                thread = new ThreadPost({
-                    channelId: channelId,
-                    postCount: postCount,
-                    uniqueID: uniqueID,
-                    author: userID,
-                    authorName: authorName,
-                    content: content,
-                    url: new Map(),
-                    imageURL: imageURL
-                });
-            }
-            console.log("b")
-            const messageURL = `https://discord.com/channels/${message.guild.id}/${message.channel.id}/${message.id}`;
-            if (!thread.url) {
-                thread.url = new Map();
-            }
-            console.log(messageURL)
-            thread.url.set(serverId, messageURL);
-            await thread.save();
-        };
-        await updateThreadPostURL(message1, primaryServerId);
-        await updateThreadPostURL(message2, secondaryServerId);
+        let thread = await ThreadPost.findOne({ postCount: postCount });
+        console.log("a")
+        if (!thread) {
+            thread = new ThreadPost({
+                channelId: channelId,
+                postCount: postCount,
+                uniqueID: uniqueID,
+                author: userID,
+                authorName: authorName,
+                content: content,
+                url: new Map(),
+                imageURL: imageURL
+            });
+        }
+        console.log("b")
+        const messageURL = `https://discord.com/channels/${message1.guild.id}/${message1.channel.id}/${message1.id}`;
+        if (!thread.url) {
+            thread.url = new Map();
+        }
+        console.log(messageURL)
+        thread.url.set(primaryServerId, messageURL);
+        await thread.save();
     } else {
-        const updatePostURL = async (message, serverId) => {
-            let post = await Post.findOne({ postCount: postCount });
-            if (!post) {
-                post = new Post({
-                    postCount: postCount,
-                    uniqueID: uniqueID,
-                    author: userID,
-                    authorName: authorName,
-                    content: content,
-                    url: new Map(),
-                    imageURL: imageURL
-                });
-            }
-            const messageURL = `https://discord.com/channels/${message.guild.id}/${message.channel.id}/${message.id}`;
-            if (!post.url) {
-                post.url = new Map();
-            }
-            post.url.set(serverId, messageURL);
-            await post.save();
-
-        };
-        await updatePostURL(message1, primaryServerId);
-        await updatePostURL(message2, secondaryServerId);
+        let post = await Post.findOne({ postCount: postCount });
+        if (!post) {
+            post = new Post({
+                postCount: postCount,
+                uniqueID: uniqueID,
+                author: userID,
+                authorName: authorName,
+                content: content,
+                url: new Map(),
+                imageURL: imageURL
+            });
+        }
+        const messageURL = `https://discord.com/channels/${message1.guild.id}/${message1.channel.id}/${message1.id}`;
+        if (!post.url) {
+            post.url = new Map();
+        }
+        post.url.set(primaryServerId, messageURL);
+        await post.save();
     }
 }
 
@@ -326,7 +240,6 @@ client.on(Events.MessageCreate, async (message) => {
         // 共通処理
         const userID = message.author.id;
         let originalContent = message.content;
-        let secondaryContent;
         let attachedImageURLs = [];
         let attachedFiles = [];
 
@@ -343,15 +256,11 @@ client.on(Events.MessageCreate, async (message) => {
             
             if (referencedPost) {
                 const primaryServerId = message.guildId;
-                const secondaryServerId = serverIdMap[primaryServerId];
                 const primaryServerPostLink = referencedPost.url.get(primaryServerId);
-                const secondaryServerPostLink = referencedPost.url.get(secondaryServerId);
 
                 const primaryQuotedLink = `[>>${quotedPostNumber}](${primaryServerPostLink})`;
-                const secondaryQuotedLink = `[>>${quotedPostNumber}](${secondaryServerPostLink})`;
 
                 originalContent = originalContent.replace(quoteMatch[0], '').trim();
-                secondaryContent = `${secondaryQuotedLink} ${originalContent}`;
                 originalContent = `${primaryQuotedLink} ${originalContent}`;
             } else {
                 originalContent = originalContent.replace(quoteMatch[0], '').trim();
@@ -424,30 +333,6 @@ client.on(Events.MessageCreate, async (message) => {
             return match === '.' ? match : '';
         });
 
-        // 二次コンテンツの検閲
-        let censoredSecondaryContent;
-        if (secondaryContent) {
-            while ((imageURLMatch = imageURLRegex.exec(secondaryContent)) !== null) {
-                attachedImageURLs.push(imageURLMatch[0]);
-                secondaryContent = secondaryContent.replace(imageURLMatch[0], '');
-            }
-            while ((fileURLMatch = fileURLRegex.exec(secondaryContent)) !== null) {
-                attachedFiles.push(fileURLMatch[0]);
-                secondaryContent = secondaryContent.replace(fileURLMatch[0], '');
-            }
-
-            censoredSecondaryContent = secondaryContent;
-            blacklistedWords.forEach(word => {
-                const regex = new RegExp(word, "gi");
-                censoredSecondaryContent = censoredSecondaryContent.replace(regex, "*".repeat(word.length));
-            });
-            censoredSecondaryContent = censoredSecondaryContent.replace(/(https?:\/\/discord(?:\"|\.com)\/channels\/\d+\/\d+\/\d+)/gi, (match, p1) => {
-                return `<${p1}>`;
-            }).replace(/\.(?=https?:\/\/discord(?:\"|\.com)\/channels\/\d+)/gi, (match) => {
-                return match === '.' ? match : '';
-            });
-        }
-
         // ユーザーの一意のIDを生成
         const uniqueID = await getUniqueID(userID);
         const thread1 = await Thread.findOne({ userId: userID})
@@ -471,39 +356,24 @@ client.on(Events.MessageCreate, async (message) => {
 
         // 投稿の送信と記録
         const primaryServerId = message.guild.id;
-        const secondaryServerId = serverIdMap[primaryServerId];
 
         const mainTimelineChannelId = message.channel.parentId;
 
-        // First, find the Thread document where mainTimelineChannelId matches either main or sub channel ID
-        let mainTimeline, subTimeline;
+        // First, find the Thread document where mainTimelineChannelId matches main channel ID
+        let mainTimeline;
         const thread = await Thread.findOne({
-            $or: [
-                { 'channelIds.main': mainTimelineChannelId },
-                { 'channelIds.sub': mainTimelineChannelId }
-            ]
+            'channelIds.main': mainTimelineChannelId
         });
-            if (isTimelineAnonymous || isTimelineNonAnonymous) {
-                mainTimeline = client.channels.cache.get(MAIN_TIMELINE_CHANNEL);
-                subTimeline = client.channels.cache.get(SUB_TIMELINE_CHANNEL)
-            } else if (isThreadAnonymous || isThreadNonAnonymous) {
-                mainTimeline = client.channels.cache.get(message.channel.parentId)
-                if (thread.channelIds.main === mainTimelineChannelId) {
-                    subTimeline  = client.channels.cache.get(thread.channelIds.sub);
-                } else {
-                    subTimeline = client.channels.cache.get(thread.channelIds.main);
-                }
-            }
-
-        let postContentMain = `\n\n\n${censoredOriginalContent || censoredSecondaryContent || ''}`;
-        let postContentSub;
-        if (censoredSecondaryContent) {
-            postContentSub = `\n\n\n${censoredSecondaryContent}`;
-        } else {
-            postContentSub = `\n\n\n${censoredOriginalContent || censoredSecondaryContent || ''}`;
+        
+        if (isTimelineAnonymous || isTimelineNonAnonymous) {
+            mainTimeline = client.channels.cache.get(MAIN_TIMELINE_CHANNEL);
+        } else if (isThreadAnonymous || isThreadNonAnonymous) {
+            mainTimeline = client.channels.cache.get(message.channel.parentId)
         }
 
-        let postEmbedMain, postEmbedSub;
+        let postContent = `\n\n\n${censoredOriginalContent || ''}`;
+
+        let postEmbed;
         let postCount;
         if (isThreadAnonymous || isThreadNonAnonymous) {
             const thread = await Thread.findOne({ 'channelIds.main': message.channel.parentId });
@@ -516,99 +386,56 @@ client.on(Events.MessageCreate, async (message) => {
                 console.error('Thread not found for channel:', message.channel.parentId);
             }
 
-            postEmbedMain = new EmbedBuilder()
+            postEmbed = new EmbedBuilder()
                 .setTimestamp()
                 .setColor(0x2b2d31)
                 .setTitle(`[${thread.postCounter}] ${authorName}`)
-                .setDescription(postContentMain);
-
-            postEmbedSub = new EmbedBuilder()
-                .setTimestamp()
-                .setColor(0x2b2d31)
-                .setTitle(`[${thread.postCounter}] ${authorName}`)
-                .setDescription(postContentSub);
+                .setDescription(postContent);
         } 
         if (isTimelineAnonymous || isTimelineNonAnonymous) {
             postCount = globalPostCount.postCount;
-            postEmbedMain = new EmbedBuilder()
+            postEmbed = new EmbedBuilder()
                 .setTimestamp()
                 .setColor(0x2b2d31)
                 .setTitle(`[${globalPostCount.postCount}] ${authorName}`)
-                .setDescription(postContentMain);
-
-            postEmbedSub = new EmbedBuilder()
-                .setTimestamp()
-                .setColor(0x2b2d31)
-                .setTitle(`[${globalPostCount.postCount}] ${authorName}`)
-                .setDescription(postContentSub);
+                .setDescription(postContent);
         }
 
         if (isThreadAnonymous || isTimelineAnonymous) {
-            postEmbedMain.setThumbnail("https://media.discordapp.net/attachments/1220269370580795482/1250382302073327738/OIG2.hBuT.jpg?ex=666abcc3&is=66696b43&hm=91c2d82b0b13e6ec5f6e9f08dfa861f904ed80d158d4ef54d2233e84e6cf2438&=&format=webp&width=595&height=595");
-            if (subTimeline) {
-                postEmbedSub.setThumbnail("https://media.discordapp.net/attachments/1220269370580795482/1250382302073327738/OIG2.hBuT.jpg?ex=666abcc3&is=66696b43&hm=91c2d82b0b13e6ec5f6e9f08dfa861f904ed80d158d4ef54d2233e84e6cf2438&=&format=webp&width=595&height=595");
-            }
+            postEmbed.setThumbnail("https://media.discordapp.net/attachments/1220269370580795482/1250382302073327738/OIG2.hBuT.jpg?ex=666abcc3&is=66696b43&hm=91c2d82b0b13e6ec5f6e9f08dfa861f904ed80d158d4ef54d2233e84e6cf2438&=&format=webp&width=595&height=595");
         } else {
-            postEmbedMain.setThumbnail(message.author.displayAvatarURL());
-            if (subTimeline) {
-                postEmbedSub.setThumbnail(message.author.displayAvatarURL());
-            }
+            postEmbed.setThumbnail(message.author.displayAvatarURL());
         }
 
-        const message1 = await mainTimeline.send({ embeds: [postEmbedMain] });
+        const message1 = await mainTimeline.send({ embeds: [postEmbed] });
         const emojis = ["❤", "😂", "🥺"];
         for (const emoji of emojis) {
             message1.react(emoji);
         }
-        if (subTimeline) {
-            const message2 = await subTimeline.send({ embeds: [postEmbedSub] });
-            for (const emoji of emojis) {
-                message2.react(emoji);
-            }
-            
-            if (first) {
-                if (isThreadAnonymous || isThreadNonAnonymous) {
-                    await updatePostURLs(true, message1, message2, postCount, userID, authorName, attachedImageURLs[0], message.guildId, serverIdMap[message.guildId], uniqueID, first, message.channel.parentId);
-                } else {
-                    await updatePostURLs(false, message1, message2,postCount, userID, authorName, attachedImageURLs[0], message.guildId, serverIdMap[message.guildId], uniqueID, first, message.channel.parentId);
-                }
-                
+        
+        if (first) {
+            if (isThreadAnonymous || isThreadNonAnonymous) {
+                await updatePostURLs(true, message1, postCount, userID, authorName, attachedImageURLs[0], message.guildId, uniqueID, first, message.channel.parentId);
             } else {
-                if (isThreadAnonymous || isThreadNonAnonymous) {
-                    await updatePostURLs(true, message1, message2, postCount, userID, authorName, attachedImageURLs[0], message.guildId, serverIdMap[message.guildId], uniqueID, censoredOriginalContent, message.channel.parentId);
-                } else {
-                    await updatePostURLs(false, message1, message2, postCount, userID, authorName, attachedImageURLs[0], message.guildId, serverIdMap[message.guildId], uniqueID, censoredOriginalContent, message.channel.parentId);
-                }
+                await updatePostURLs(false, message1, postCount, userID, authorName, attachedImageURLs[0], message.guildId, uniqueID, first, message.channel.parentId);
             }
         } else {
-            if (first) {
-                if (isThreadAnonymous || isThreadNonAnonymous) {
-                    await updatePostURLs(true, message1, null, postCount, userID, authorName, attachedImageURLs[0], message.guildId, serverIdMap[message.guildId], uniqueID, first, message.channel.parentId);
-                } else {
-                    await updatePostURLs(false, message1, null, postCount, userID, authorName, attachedImageURLs[0], message.guildId, serverIdMap[message.guildId], uniqueID, first, message.channel.parentId);
-                }
+            if (isThreadAnonymous || isThreadNonAnonymous) {
+                await updatePostURLs(true, message1, postCount, userID, authorName, attachedImageURLs[0], message.guildId, uniqueID, censoredOriginalContent, message.channel.parentId);
             } else {
-                if (isThreadAnonymous || isThreadNonAnonymous) {
-                    await updatePostURLs(true, message1, message2, postCount, userID, authorName, attachedImageURLs[0], message.guildId, serverIdMap[message.guildId], uniqueID, censoredOriginalContent, message.channel.parentId);
-                } else {
-                    await updatePostURLs(false, message1, message2, postCount, userID, authorName, attachedImageURLs[0], message.guildId, serverIdMap[message.guildId], uniqueID, censoredOriginalContent, message.channel.parentId);
-                }
+                await updatePostURLs(false, message1, postCount, userID, authorName, attachedImageURLs[0], message.guildId, uniqueID, censoredOriginalContent, message.channel.parentId);
             }
         }
 
         for (const url of attachedImageURLs) {
             await mainTimeline.send(url);
-            if (subTimeline) await subTimeline.send(url);
         }
         for (const url of attachedFiles) {
             await mainTimeline.send(url);
-            if (subTimeline) await subTimeline.send(url);
         }
         if (isTimelineAnonymous || isTimelineNonAnonymous) {
-            await sendButton(false, MAIN_SERVER_ID);
-            await sendButton(true, MAIN_SERVER_ID);
-            if (subTimeline) await sendButton(false, SUB_SERVER_ID);
-            if (subTimeline) await sendButton(true, SUB_SERVER_ID);
+            await sendButton(false);
+            await sendButton(true);
         }
         if (isThreadAnonymous || isThreadNonAnonymous) {
             await sendButtonToThread(false, message.channel.parentId)
@@ -786,31 +613,30 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     const threads = await Thread.find({ userId: userId });
                     if (threads.length > 0) {
                         for (const thread of threads) {
-                            for (const channelId of Object.values(thread.channelIds)) {
-                                const channel = client.channels.cache.get(channelId);
-                                if (channel) {
-                                    // Delete derived threads first
-                                    try {
-                                        const derivedThreads = await channel.threads.fetchActive();
-                                        for (const [, derivedThread] of derivedThreads.threads) {
-                                            await derivedThread.delete();
-                                        }
-                                    } catch (error) {
-                                        console.error(`Error fetching or deleting derived threads for channel ${channelId}:`, error);
+                            const channelId = thread.channelIds.main;
+                            const channel = client.channels.cache.get(channelId);
+                            if (channel) {
+                                // Delete derived threads first
+                                try {
+                                    const derivedThreads = await channel.threads.fetchActive();
+                                    for (const [, derivedThread] of derivedThreads.threads) {
+                                        await derivedThread.delete();
                                     }
-            
-                                    try {
-                                        await channel.delete();
-                                    } catch (error) {
-                                        if (error.code === 10003) {
-                                            console.warn(`Channel ${channelId} not found (possibly already deleted).`);
-                                        } else {
-                                            console.error(`Error deleting channel ${channelId}:`, error);
-                                        }
-                                    }
-                                } else {
-                                    console.warn(`Channel ${channelId} not found in cache.`);
+                                } catch (error) {
+                                    console.error(`Error fetching or deleting derived threads for channel ${channelId}:`, error);
                                 }
+        
+                                try {
+                                    await channel.delete();
+                                } catch (error) {
+                                    if (error.code === 10003) {
+                                        console.warn(`Channel ${channelId} not found (possibly already deleted).`);
+                                    } else {
+                                        console.error(`Error deleting channel ${channelId}:`, error);
+                                    }
+                                }
+                            } else {
+                                console.warn(`Channel ${channelId} not found in cache.`);
                             }
                         }
                         await Thread.deleteMany({ userId: userId });
@@ -850,74 +676,59 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 const threadTitle = interaction.fields.getTextInputValue("threadTitle");
                 const threadRule= interaction.fields.getTextInputValue("ruleInput");
                 const mainParentCategoryId = MAIN_THREAD_PEARENT;
-                const subParentCategoryId = SUB_THREAD_PEARENT;
 
-                const serverList = [MAIN_SERVER_ID, SUB_SERVER_ID];
-
-                const createdChannels = await Promise.all(serverList.map(async serverId => {
-                    const guild = client.guilds.cache.get(serverId);
-                    if (!guild) return null;
-
-                    let parentCategoryId;
-                    if (serverId === MAIN_SERVER_ID) {
-                        parentCategoryId = mainParentCategoryId;
-                    } else if (serverId === SUB_SERVER_ID) {
-                        parentCategoryId = subParentCategoryId;
-                    }
-
-                    const category = guild.channels.cache.get(parentCategoryId);
-                    if (!category) return null;
-
-                    const permissions = [
-                        {
-                            id: guild.roles.everyone,
-                            deny: [ 
-                                PermissionsBitField.Flags.SendMessages,
-                                PermissionsBitField.Flags.CreatePublicThreads,
-                                PermissionsBitField.Flags.CreatePrivateThreads
-                            ],
-                            allow: [
-                                PermissionsBitField.Flags.SendMessagesInThreads
-                            ]
-                        }
-                    ];
-
-                    const newChannel = await guild.channels.create({
-                        name: threadTitle,
-                        type: ChannelType.GuildText,
-                        parent: category,
-                        permissionOverwrites: permissions
-                    });
-                    const ruleEmbed = new EmbedBuilder()
-                        .setTitle(threadRule)
-                        .setColor(0x2b2d31)
-
-                    await newChannel.send({embeds: [ruleEmbed]})
-
-                    return { serverId, channelId: newChannel.id };
-                }));
-
-                const mainChannel = createdChannels.find(channel => channel && channel.serverId === MAIN_SERVER_ID);
-                const subChannel = createdChannels.find(channel => channel && channel.serverId === SUB_SERVER_ID);
-
-                if (mainChannel && subChannel) {
-                    const newThread = new Thread({
-                        userId: userId,
-                        channelIds: {
-                            main: mainChannel.channelId,
-                            sub: subChannel.channelId
-                        },
-                        threadName: threadTitle,
-                        postCounter: 0,
-                    });
-                    await newThread.save();
-
-                    await sendButtonToThread(true, mainChannel.channelId);
-
-                    await interaction.editReply({ content: `スレッド '${threadTitle}' が作成されました！`, ephemeral: true });
-                } else {
-                    await interaction.editReply({ content: "スレッドの作成に失敗しました。", ephemeral: true });
+                const guild = client.guilds.cache.get(MAIN_SERVER_ID);
+                if (!guild) {
+                    await interaction.editReply({ content: "サーバーが見つかりません。", ephemeral: true });
+                    return;
                 }
+
+                const category = guild.channels.cache.get(mainParentCategoryId);
+                if (!category) {
+                    await interaction.editReply({ content: "カテゴリが見つかりません。", ephemeral: true });
+                    return;
+                }
+
+                const permissions = [
+                    {
+                        id: guild.roles.everyone,
+                        deny: [ 
+                            PermissionsBitField.Flags.SendMessages,
+                            PermissionsBitField.Flags.CreatePublicThreads,
+                            PermissionsBitField.Flags.CreatePrivateThreads
+                        ],
+                        allow: [
+                            PermissionsBitField.Flags.SendMessagesInThreads
+                        ]
+                    }
+                ];
+
+                const newChannel = await guild.channels.create({
+                    name: threadTitle,
+                    type: ChannelType.GuildText,
+                    parent: category,
+                    permissionOverwrites: permissions
+                });
+                
+                const ruleEmbed = new EmbedBuilder()
+                    .setTitle(threadRule)
+                    .setColor(0x2b2d31)
+
+                await newChannel.send({embeds: [ruleEmbed]})
+
+                const newThread = new Thread({
+                    userId: userId,
+                    channelIds: {
+                        main: newChannel.id
+                    },
+                    threadName: threadTitle,
+                    postCounter: 0,
+                });
+                await newThread.save();
+
+                await sendButtonToThread(true, newChannel.id);
+
+                await interaction.editReply({ content: `スレッド '${threadTitle}' が作成されました！`, ephemeral: true });
             }
         }
     } catch (err) {

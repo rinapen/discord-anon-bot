@@ -7,4 +7,4 @@ const REGEX = {
     QUOTE: />>\d+/
 }
 
-export { CHANNEL_PREFIXES }
+export { CHANNEL_PREFIXES, REGEX }

@@ -1,11 +1,12 @@
-import { MongoClient, ServerApiVersion } from "mongodb";
+import { Db, MongoClient, ServerApiVersion } from "mongodb";
+import { config } from "../config";
 require("dotenv").config();
 
+let db: Db | null = null;
 let mongoClient: MongoClient | null = null;
 
-export const connectMongoDB = async (uri: string): Promise<MongoClient> => {
-    if (mongoClient) return mongoClient;
-
+export const connectMongoDB = async (uri: string): Promise<Db> => {
+    if (db) return db;    
     mongoClient = new MongoClient(uri, {
         serverApi: {
             version: ServerApiVersion.v1,
@@ -14,13 +15,13 @@ export const connectMongoDB = async (uri: string): Promise<MongoClient> => {
         }
     });
 
-    await mongoClient.connect();
+    const client = await mongoClient.connect();
     console.log("[✓] MongoDB 接続に成功しました。");
-
-    return mongoClient;
+    db = client.db(config.DB_NAME);
+    return db;
 };
 
-export const getMongoClient = (): MongoClient => {
-    if (!mongoClient) throw new Error("[×] MongoDBに接続されていません");
-    return mongoClient;
+export const getDB = (): Db => {
+    if (!db) throw new Error("[×] MongoDBに接続されていません");
+    return db;
 };

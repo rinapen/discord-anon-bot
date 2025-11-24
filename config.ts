@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 export const config = {
     BOT_ID: process.env.BOT_ID, // BotのユーザーID
     BOT_TOKEN: process.env.BOT_TOKEN, // Botのトークン

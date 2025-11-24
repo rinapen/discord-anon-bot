@@ -4,7 +4,8 @@ const CHANNEL_PREFIXES = {
 };
 
 const REGEX = {
-    QUOTE: />>\d+/
+    QUOTE: />>\d+/,
+    REFERENCE: /^\^(\d+)\s+(.+)/
 }
 
 export { CHANNEL_PREFIXES, REGEX }

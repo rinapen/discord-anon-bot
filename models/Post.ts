@@ -9,6 +9,7 @@ export interface IPost {
     url?: string;
     imageUrl?: string;
     timestamp?: Date;
+    isQuoted?: boolean;
 }
 
 export const Post = {

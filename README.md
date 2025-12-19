@@ -229,18 +229,24 @@ MONGODB_URL=mongodb://localhost:27017/anonymous_bot
 
 ```
 anonymous/
-├── index.js              # メインBotファイル
+├── index.js              # メインBotファイル（MongoDB接続も管理）
 ├── package.json          # 依存関係
 ├── blacklist.json        # ブラックリスト単語
-├── models/               # Mongooseモデル
-│   ├── Post.js
-│   ├── Thread.js
-│   ├── ThreadPost.js
-│   ├── UniqueID.js
-│   └── GlobalPostCount.js
+├── models/               # Mongooseモデル（接続コードなし）
+│   ├── Post.js           # コレクション: discord-anon-posts
+│   ├── Thread.js         # コレクション: discord-anon-threads
+│   ├── ThreadPost.js     # コレクション: discord-anon-threadposts
+│   ├── UniqueID.js       # コレクション: discord-anon-uniqueids
+│   └── GlobalPostCount.js # コレクション: discord-anon-globalpostcount
 └── utils/                # ユーティリティ関数
     └── utils.js          # ユニークID生成
 ```
+
+### MongoDB接続について
+
+- **接続は1回のみ**: `index.js`で一元管理
+- **各モデルファイル**: 接続コードを含まず、スキーマ定義のみ
+- **パフォーマンス**: 重複接続を排除し、効率的に動作
 
 ### 開発モード
 
@@ -277,10 +283,19 @@ Nodemonが自動的にファイルの変更を検知して再起動します。
 `index.js`の定数セクションで変更できます：
 
 ```javascript
-const REACTION_EMOJIS = ["❤", "😂", "🥺"];  // リアクション絵文字
+// リアクション絵文字
+const REACTION_EMOJIS = ["❤", "😂", "🥺"];
+
+// バッジ（カスタム絵文字IDまたはUnicode絵文字）
 const OWNER_EMOJI = "<:owner:1220362869439467591>";  // オーナーバッジ
 const ADMIN_EMOJI = "<:Admin:1249110303593992202>";  // 管理者バッジ
+
+// ボタン絵文字（Unicode絵文字を推奨）
+// .setEmoji("📝")  - Unicode絵文字（すべてのサーバーで動作）
+// .setEmoji({ id: "絵文字ID" })  - カスタム絵文字（Botがアクセスできるサーバーのみ）
 ```
+
+**注意**: カスタム絵文字を使用する場合は、BotがそのサーバーにいるかDiscord Nitroが必要です。
 
 ### 埋め込みカラーの変更
 

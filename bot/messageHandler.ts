@@ -100,18 +100,8 @@ export async function handleMessage(message: Message): Promise<void> {
             first = referencedMessage;
             let referencedPost: any;
             if (isThreadAnonymous || isThreadNonAnonymous) {
-                const parentId = getParentId();
-                if (parentId) {
-                    const threadRef = await Thread.findByChannelId(parentId);
-                    if (threadRef && (threadRef as any).postCounter === parseInt(referencedPostNumber)) {
-                        // スレッドの投稿を参照する場合はThreadPostから取得
-                        referencedPost = await ThreadPost.findByPostCount(parseInt(referencedPostNumber));
-                    } else {
-                        referencedPost = await ThreadPost.findByPostCount(parseInt(referencedPostNumber));
-                    }
-                } else {
-                    referencedPost = await ThreadPost.findByPostCount(parseInt(referencedPostNumber));
-                }
+                // スレッドの投稿を参照する場合はThreadPostから取得
+                referencedPost = await ThreadPost.findByPostCount(parseInt(referencedPostNumber));
             } else if (isTimelineAnonymous || isTimelineNonAnonymous) {
                 referencedPost = await Post.findByPostCount(parseInt(referencedPostNumber));
             }
@@ -124,7 +114,6 @@ export async function handleMessage(message: Message): Promise<void> {
             }
         }
 
-        // コンテンツや添付ファイルから画像URLとファイルURLを抽出する
         const imageURLRegex = /(https?:\/\/.*\.(?:png|jpg|jpeg|gif|mp4|mov))/i;
         const fileURLRegex = /(https?:\/\/.*\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|zip|rar|7z))/i;
         let imageURLMatch;
